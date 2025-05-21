@@ -2,115 +2,84 @@ import React, { useEffect, useState } from 'react';
 import { db } from './firebase';
 import { collection, addDoc, query, where, getDocs, doc, setDoc } from 'firebase/firestore';
 
+const SurveyCard = ({ title, question, options, selected, setSelected, onSubmit, submitted }) => (
+  <div className="relative z-10 bg-white rounded-2xl shadow-xl p-10 max-w-md mx-auto border border-blue-200" z-20>
+  <h2 className="text-4xl font-bold mb-6 text-blue-900">{title}</h2>
+  <p className="text-lg text-gray-700 mb-6">{question}</p>
+    <div className="space-y-4 mb-8">
+      {options.map((opt) => (
+        <label key={opt} className="flex items-center gap-3 text-left">
+          <input
+            type="radio"
+            value={opt}
+            checked={selected === opt}
+            onChange={() => setSelected(opt)}
+            className="w-5 h-5 text-blue-600"
+          />
+          <span className="text-lg text-gray-800">{opt}</span>
+        </label>
+      ))}
+    </div>
+    {!submitted ? (
+      <button
+        onClick={onSubmit}
+        className="w-full bg-rose-600 hover:bg-rose-700 text-white py-2.5 px-4 rounded-lg text-lg font-semibold transition"
+      >
+        제출하기
+      </button>
+    ) : (
+      <div className="text-rose-600 font-semibold text-center text-lg">✅ 응답해 주셔서 감사합니다!</div>
+    )}
+  </div>
+);
+
 const SurveyFor20s = ({ account }) => {
   const [selectedColor, setSelectedColor] = useState(null);
   const [submitted, setSubmitted] = useState(false);
   const [alreadyVoted, setAlreadyVoted] = useState(false);
 
-  // 투표 여부 확인
   useEffect(() => {
-    const checkVoteStatus = async () => {
-      if (!account) return;
-
-      try {
-        const votesRef = collection(db, "votes");
-        const q = query(votesRef, where("account", "==", account), where("surveyType", "==", "20s"));
-        const querySnapshot = await getDocs(q);
-
-        if (!querySnapshot.empty) {
-          setAlreadyVoted(true);
-        }
-      } catch (error) {
-        console.error("투표 상태 확인 중 오류 발생:", error);
-      }
+    if (!account) return;
+    const checkVote = async () => {
+      const q = query(collection(db, "votes"), where("account", "==", account), where("surveyType", "==", "20s"));
+      const res = await getDocs(q);
+      if (!res.empty) setAlreadyVoted(true);
     };
-
-    checkVoteStatus();
+    checkVote();
   }, [account]);
 
   const handleSubmit = async () => {
-    if (selectedColor) {
-      setSubmitted(true);
-      console.log('20대 응답:', selectedColor);
-
-      try {
-        // Firestore에 투표 결과 저장 (account 포함)
-        await addDoc(collection(db, "votes"), {
-          account: account,
-          surveyType: "20s",
-          response: selectedColor,
-          timestamp: new Date()
-        });
-
-        // 설문 결과 집계에도 추가
-        const colorRef = doc(db, "results", "20s_colors");
-        const colorData = {
-          [selectedColor]: 1 // 증가시킬 값
-        };
-
-        // 도큐먼트 업데이트 또는 생성
-        await setDoc(colorRef, colorData, { merge: true });
-
-      } catch (error) {
-        console.error("투표 저장 중 오류 발생:", error);
-      }
-
-      // 3초 후에 메인 화면으로 돌아가기 위한 타이머 설정
-      setTimeout(() => {
-        window.location.reload();
-      }, 3000);
-    } else {
-      alert('색상을 선택해주세요!');
-    }
+    if (!selectedColor) return alert("의견을 선택해주세요.");
+    setSubmitted(true);
+    await addDoc(collection(db, "votes"), {
+      account,
+      surveyType: "20s",
+      response: selectedColor,
+      timestamp: new Date()
+    });
+    const ref = doc(db, "results", "20s_colors");
+    await setDoc(ref, { [selectedColor]: 1 }, { merge: true });
+    setTimeout(() => window.location.reload(), 3000);
   };
 
-  // 이미 투표한 경우 메시지 표시
-  if (alreadyVoted) {
+  if (alreadyVoted)
     return (
-      <div className="text-center py-10">
-        <h2 className="text-4xl font-bold my-10">20대 설문조사</h2>
-        <div className="bg-yellow-100 border border-yellow-400 text-yellow-700 px-4 py-3 rounded mb-6">
-          이미 이 설문에 참여하셨습니다.
-        </div>
+      <div className="text-center p-8 text-rose-700 bg-rose-100 border border-rose-300 rounded-xl max-w-md mx-auto">
+         
+        이미 이 설문에 참여하셨습니다.
       </div>
     );
-  }
 
   return (
-    <div className="text-center">
-      <h2 className="text-4xl font-bold my-10">20대 설문조사</h2>
-      <div className="mb-8">
-        <p className="text-xl mb-6">어떤 색을 가장 좋아하시나요?</p>
-        <div className="flex flex-col space-y-4 max-w-xs mx-auto">
-          {['빨강', '주황', '노랑'].map((color) => (
-            <label key={color} className="flex items-center space-x-2">
-              <input
-                type="radio"
-                name="color"
-                value={color}
-                checked={selectedColor === color}
-                onChange={() => setSelectedColor(color)}
-                className="w-5 h-5"
-              />
-              <span className="text-lg">{color}</span>
-            </label>
-          ))}
-        </div>
-      </div>
-
-      {!submitted ? (
-        <button
-          onClick={handleSubmit}
-          className="bg-gray-200 hover:bg-gray-300 text-black py-2 px-10 rounded text-lg"
-        >
-          제출하기
-        </button>
-      ) : (
-        <div className="text-green-600 font-bold">
-          응답해 주셔서 감사합니다!
-        </div>
-      )}
-    </div>
+    <SurveyCard
+      title="20대 설문조사"
+      question="실질적으로 MZ 세대가 몇살 까지를 지칭한다고 보시나요?"
+      options={['20~30대', '20~40대', '잘 모르겠다.']}
+      selected={selectedColor}
+      setSelected={setSelectedColor}
+      onSubmit={handleSubmit}
+      submitted={submitted}
+    />
   );
 };
 
@@ -119,131 +88,61 @@ const SurveyFor30s = ({ account }) => {
   const [submitted, setSubmitted] = useState(false);
   const [alreadyVoted, setAlreadyVoted] = useState(false);
 
-  // 투표 여부 확인
   useEffect(() => {
-    const checkVoteStatus = async () => {
-      if (!account) return;
-
-      try {
-        const votesRef = collection(db, "votes");
-        const q = query(votesRef, where("account", "==", account), where("surveyType", "==", "30s"));
-        const querySnapshot = await getDocs(q);
-
-        if (!querySnapshot.empty) {
-          setAlreadyVoted(true);
-        }
-      } catch (error) {
-        console.error("투표 상태 확인 중 오류 발생:", error);
-      }
+    if (!account) return;
+    const checkVote = async () => {
+      const q = query(collection(db, "votes"), where("account", "==", account), where("surveyType", "==", "30s"));
+      const res = await getDocs(q);
+      if (!res.empty) setAlreadyVoted(true);
     };
-
-    checkVoteStatus();
+    checkVote();
   }, [account]);
 
   const handleSubmit = async () => {
-    if (selectedFood) {
-      setSubmitted(true);
-      console.log('30대 응답:', selectedFood);
-
-      try {
-        // Firestore에 투표 결과 저장 (account 포함)
-        await addDoc(collection(db, "votes"), {
-          account: account,
-          surveyType: "30s",
-          response: selectedFood,
-          timestamp: new Date()
-        });
-
-        // 설문 결과 집계에도 추가
-        const foodRef = doc(db, "results", "30s_foods");
-        const foodData = {
-          [selectedFood]: 1 // 증가시킬 값
-        };
-
-        // 도큐먼트 업데이트 또는 생성
-        await setDoc(foodRef, foodData, { merge: true });
-
-      } catch (error) {
-        console.error("투표 저장 중 오류 발생:", error);
-      }
-
-      // 3초 후에 메인 화면으로 돌아가기 위한 타이머 설정
-      setTimeout(() => {
-        window.location.reload();
-      }, 3000);
-    } else {
-      alert('음식을 선택해주세요!');
-    }
+    if (!selectedFood) return alert("의견을 선택해주세요.");
+    setSubmitted(true);
+    await addDoc(collection(db, "votes"), {
+      account,
+      surveyType: "30s",
+      response: selectedFood,
+      timestamp: new Date()
+    });
+    const ref = doc(db, "results", "30s_foods");
+    await setDoc(ref, { [selectedFood]: 1 }, { merge: true });
+    setTimeout(() => window.location.reload(), 3000);
   };
 
-  // 이미 투표한 경우 메시지 표시
-  if (alreadyVoted) {
+  if (alreadyVoted)
     return (
-      <div className="text-center py-10">
-        <h2 className="text-4xl font-bold my-10">30대 설문조사</h2>
-        <div className="bg-yellow-100 border border-yellow-400 text-yellow-700 px-4 py-3 rounded mb-6">
-          이미 이 설문에 참여하셨습니다.
-        </div>
+      <div className="text-center p-8 text-rose-700 bg-rose-100 border border-rose-300 rounded-xl max-w-md mx-auto">
+        이미 이 설문에 참여하셨습니다.
       </div>
     );
-  }
 
   return (
-    <div className="text-center">
-      <h2 className="text-4xl font-bold my-10">30대 설문조사</h2>
-      <div className="mb-8">
-        <p className="text-xl mb-6">어떤 음식을 가장 좋아하시나요?</p>
-        <div className="flex flex-col space-y-4 max-w-xs mx-auto">
-          {['한식', '일식', '중식'].map((food) => (
-            <label key={food} className="flex items-center space-x-2">
-              <input
-                type="radio"
-                name="food"
-                value={food}
-                checked={selectedFood === food}
-                onChange={() => setSelectedFood(food)}
-                className="w-5 h-5"
-              />
-              <span className="text-lg">{food}</span>
-            </label>
-          ))}
-        </div>
-      </div>
-
-      {!submitted ? (
-        <button
-          onClick={handleSubmit}
-          className="bg-gray-200 hover:bg-gray-300 text-black py-2 px-10 rounded text-lg"
-        >
-          제출하기
-        </button>
-      ) : (
-        <div className="text-green-600 font-bold">
-          응답해 주셔서 감사합니다!
-        </div>
-      )}
-    </div>
+    <SurveyCard
+      title="30대 설문조사"
+      question="MZ 세대에 본인이 포함된다고 생각한다."
+      options={['그렇다', '아니다', '잘 모르겠다.']}
+      selected={selectedFood}
+      setSelected={setSelectedFood}
+      onSubmit={handleSubmit}
+      submitted={submitted}
+    />
   );
 };
 
-// 알림 토스트 컴포넌트
 const Toast = ({ message, onClose }) => {
   useEffect(() => {
-    const timer = setTimeout(() => {
-      onClose();
-    }, 3000);
-
-    return () => clearTimeout(timer);
+    const t = setTimeout(onClose, 3000);
+    return () => clearTimeout(t);
   }, [onClose]);
 
   return (
     <div className="fixed top-6 left-0 w-full flex justify-center z-50">
-      <div className="bg-white py-3 px-5 rounded-lg shadow-lg border-2 border-green-500 flex items-center">
-        <p className="text-lg mr-4">{message}</p>
-        <button
-          onClick={onClose}
-          className="bg-gray-200 hover:bg-gray-300 px-3 py-1 rounded text-sm"
-        >
+      <div className="bg-rose-100 border border-rose-400 px-6 py-4 rounded-xl shadow-md text-rose-800 flex items-center gap-4">
+        <p className="text-base font-medium">{message}</p>
+        <button onClick={onClose} className="text-sm px-3 py-1 bg-rose-200 hover:bg-rose-300 rounded-md">
           확인
         </button>
       </div>
@@ -261,56 +160,44 @@ function MainPage() {
 
   useEffect(() => {
     const receiveMessage = async (event) => {
-      if (event.origin !== 'http://localhost:3000') return; // 보안 체크
-      console.log('인증된 데이터 수신:', event.data);
+      if (event.origin !== 'http://localhost:3000') return;
 
       if (event.data.isVerified) {
         const receivedAccount = event.data.account;
         const receivedAge = event.data.age;
+        console.log("알수 있는 것 :",receivedAge);
+        const surveyType =
+          receivedAge >= 20 && receivedAge < 30 ? '20s' :
+          receivedAge >= 30 && receivedAge < 40 ? '30s' : null;
 
-        try {
-          // Firestore에서 해당 계정의 투표 여부 확인
-          const votesRef = collection(db, "votes");
-          const surveyType = receivedAge >= 20 && receivedAge < 30 ? "20s" : receivedAge >= 30 && receivedAge < 40 ? "30s" : null;
-          
-          if (!surveyType) {
-            // 지원하지 않는 연령대
-            setToastMessage("죄송합니다. 현재 20대와 30대를 위한 설문만 진행 중입니다.");
-            setShowToast(true);
-            return;
-          }
-
-          const q = query(votesRef, where("account", "==", receivedAccount), where("surveyType", "==", surveyType));
-          const querySnapshot = await getDocs(q);
-
-          if (!querySnapshot.empty) {
-            // 이미 투표한 경우
-            setToastMessage("이미 투표가 완료되었습니다!");
-            setShowToast(true);
-            return;
-          }
-
-          // 투표하지 않은 경우에만 로그인 상태 업데이트
-          setIsLoggedIn(true);
-          setUserData({ age: receivedAge, account: receivedAccount });
-          setAccount(receivedAccount);
-          setShowLoginButton(false);
-          setToastMessage("✅ VeriVote 인증 완료! 설문조사에 참여할 수 있습니다.");
+        if (!surveyType) {
+          setToastMessage("❌ 현재 20대와 30대만 참여 가능합니다.");
           setShowToast(true);
-
-        } catch (error) {
-          console.error("투표 상태 확인 중 오류 발생:", error);
-          setToastMessage("오류가 발생했습니다. 다시 시도해주세요.");
-          setShowToast(true);
+          return;
         }
+
+        const q = query(collection(db, "votes"),
+          where("account", "==", receivedAccount),
+          where("surveyType", "==", surveyType));
+        const snapshot = await getDocs(q);
+        if (!snapshot.empty) {
+          setToastMessage("이미 설문에 참여하셨습니다!");
+          console.log(receivedAge)
+          setShowToast(true);
+          return;
+        }
+
+        setIsLoggedIn(true);
+        setUserData({ age: receivedAge, account: receivedAccount });
+        setAccount(receivedAccount);
+        setShowLoginButton(false);
+        setToastMessage("✅ 인증 완료! 설문조사에 참여하세요.");
+        setShowToast(true);
       }
     };
 
     window.addEventListener('message', receiveMessage);
-
-    return () => {
-      window.removeEventListener('message', receiveMessage);
-    };
+    return () => window.removeEventListener('message', receiveMessage);
   }, []);
 
   const handleLoginClick = () => {
@@ -319,65 +206,71 @@ function MainPage() {
       'VeriVoteLogin',
       'width=600,height=600'
     );
-
-    if (!popup) {
-      alert('팝업 차단이 되어 있습니다. 허용해 주세요!');
-    }
+    if (!popup) alert('팝업 차단을 해제해주세요.');
   };
 
-  // 사용자 연령대에 따른 설문조사 컴포넌트 선택
   const renderSurvey = () => {
-    if (!userData || !userData.age) return null;
-
+    if (!userData) return null;
     const age = parseInt(userData.age);
-    if (age >= 20 && age < 30) {
-      return <SurveyFor20s account={account} />;
-    } else if (age >= 30 && age < 40) {
-      return <SurveyFor30s account={account} />;
-    } else {
-      return (
-        <div className="text-center py-10">
-          <div className="bg-yellow-100 border border-yellow-400 text-yellow-700 px-4 py-3 rounded">
-            죄송합니다. 현재 20대와 30대를 위한 설문만 진행 중입니다.
-          </div>
-        </div>
-      );
-    }
+    if (age >= 20 && age < 30) return <SurveyFor20s account={account} />;
+    if (age >= 30 && age < 40) return <SurveyFor30s account={account} />;
+    return <div className="text-center mt-10 text-red-500">지원되지 않는 연령대입니다.</div>;
   };
 
   return (
-    <div className="min-h-screen py-10 px-4">
-      {showToast && (
-        <Toast
-          message={toastMessage}
-          onClose={() => setShowToast(false)}
-        />
-      )}
+    <div className="relative z-10 min-h-screen bg-gradient-to-b from-blue-50 via-white to-blue-100 py-12 px-4">
+      {showToast && <Toast message={toastMessage} onClose={() => setShowToast(false)} />}
 
       <div className="max-w-3xl mx-auto">
-        <div className="text-center mb-8">
-          <h1 className="text-5xl font-bold mb-2">PollChain</h1>
-          <p className="text-xl">블록체인 기반 신뢰할 수 있는 설문조사 플랫폼</p>
+        <div className="text-center mb-16">
+        <h1 className="text-5xl font-extrabold text-blue-800 mb-4 drop-shadow-sm">MZ 세대에 대한 인식 조사</h1>
+        <div className="flex justify-center items-center gap-2">
+    <img src="/logo.png" alt="로고" className="w-6 h-6" />
+    <p className="text-lg text-blue-700 italic">국민화합위원회</p>
+  </div>
         </div>
 
         {showLoginButton && (
-          <div className="text-center my-16">
-            <h2 className="text-2xl font-medium mb-8">VeriVote로 인증하고 설문에 참여하세요</h2>
+          <div className="text-center mt-16">
+     <h2 className="text-2xl font-semibold mb-4 text-gray-800">
+  VeriVote로 인증하고 설문에 참여하세요
+</h2>
+<p className="text-base text-gray-600 mb-6">
+  *본 설문조사는 보다 정확한 분석을 위해 설문자의 나이를 요구합니다.
+</p>
+
             <button
               onClick={handleLoginClick}
-              className="bg-gray-200 hover:bg-gray-300 text-black py-2 px-8 rounded text-lg"
+              className="bg-rose-600 hover:bg-rose-700 text-white py-3 px-8 rounded-xl text-lg font-semibold shadow-md transition"
             >
-              VeriVote로 로그인
+              VeriVote로 로그인하기
             </button>
           </div>
         )}
 
         {isLoggedIn && (
-          <div className="my-4">
+          <div className="mt-10">
             {renderSurvey()}
           </div>
         )}
       </div>
+
+  
+      <div className="fixed bottom-0 left-0 w-full flex justify-center gap-0 overflow-hidden py-4 z-0 pointer-events-none">
+  {Array(2).fill(0).map((_, i) => (
+    <img
+      key={i}
+      src="/people.png"
+      alt="설문 이미지"
+      className="w-1/2 h-auto object-cover"
+    />
+  ))}
+</div>
+
+
+
+
+
     </div>
   );
 }
